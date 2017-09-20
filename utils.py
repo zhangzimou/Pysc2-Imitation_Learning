@@ -6,7 +6,7 @@ from functools import reduce
 
 
 Transition = namedtuple('Transition',
-                        ('state', 'action', 'reward', 'next_state', 'done'))
+                        ('state', 'action', 'reward', 'next_state'))
 
 
 class ReplayMemorySimple(object):
@@ -34,7 +34,6 @@ class ReplayMemory(object):
         self.states = np.array([None]*capacity)
         self.actions = np.array([None]*capacity)
         self.rewards = np.array([None]*capacity)
-        self.dones = np.array([None]*capacity)
         self.position = 0
         self.size = 0
         self.n_step = n_step
@@ -42,11 +41,10 @@ class ReplayMemory(object):
         if n_step is not None and gamma is None:
             raise Exception("")
 
-    def push(self, state, action, reward, done):
+    def push(self, state, action, reward):
         self.states[self.position] = state
         self.actions[self.position] = action
         self.rewards[self.position] = reward
-        self.dones[self.position] = done
         self.position = (self.position + 1) % self.capacity
         self.size += 1
 
@@ -56,14 +54,13 @@ class ReplayMemory(object):
             index_ = np.random.choice(self.size, batch_size)
             index_ = self._valid_index(index_)
             index = np.concatenate([index, index_])
-        index = index[:batch_size]
+        index = index[:batch_size].astype(int)
         states_batch = self.states[index]
         actions_batch = self.actions[index]
-        rewards_batch = self.actions[index]
+        rewards_batch = self.rewards[index]
         next_states_batch = self.states[(index+1)%self.capacity]
-        done_batch = self.dones[(index+1)%self.capacity]
         trans = Transition(states_batch, actions_batch, rewards_batch,
-                   next_states_batch, done_batch)
+                   next_states_batch)
         if self.n_step is None:
             return trans
         else:
@@ -73,17 +70,18 @@ class ReplayMemory(object):
 
     def _valid_index(self, index):
         if self.n_step is None:
-            return index[self.dones[index] is False]
+            valid_index = [self.states[i] is not None for i in index]
+            return index[valid_index]
 
         n = self.n_step - 1
 
         def util(i):
             if i+n <= self.capacity:
-                dones = self.dones[i:i+n]
+                states = self.states[i:i+n]
             else:
-                dones = np.concatenate([self.dones[i:],
-                                        self.dones[:i+n-self.capacity]])
-            return np.all(dones is False)
+                states = np.concatenate([self.states[i:],
+                                         self.states[:i+n-self.capacity]])
+            return np.all(states != None)
 
         valid_index = [util(i) for i in index]
         return index[valid_index]
