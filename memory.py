@@ -47,6 +47,7 @@ class ReplayMemorySimple(object):
 
 class ReplayMemory(object):
     def __init__(self, capacity, n_step=None, gamma=None):
+        capacity = int(capacity)
         self.capacity = capacity
         self.states = np.array([None]*capacity)
         self.actions = np.array([None]*capacity)

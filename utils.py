@@ -2,7 +2,77 @@ import random
 from collections import namedtuple
 from collections import deque
 import numpy as np
-import matplotlib.pyplot as plt
+
+from pysc2.env import sc2_env
+from pysc2.lib import actions
+from pysc2.lib import features
+import gflags as flags
+
+_PLAYER_RELATIVE = features.SCREEN_FEATURES.player_relative.index
+_PLAYER_FRIENDLY = 1
+_PLAYER_NEUTRAL = 3  # beacon/minerals
+_PLAYER_HOSTILE = 4
+_NO_OP = actions.FUNCTIONS.no_op.id
+_MOVE_SCREEN = actions.FUNCTIONS.Move_screen.id
+_ATTACK_SCREEN = actions.FUNCTIONS.Attack_screen.id
+_SELECT_ARMY = actions.FUNCTIONS.select_army.id
+_SELECT_POINT = actions.FUNCTIONS.select_point.id
+_NOT_QUEUED = [0]
+_SELECT_ALL = [0]
+FLAGS = flags.FLAGS
+
+
+class Pysc2Wrapper(object):
+
+    def __init__(self, env, dim, processor=None):
+        self.env = env
+        self.dim = dim
+        self.processor = processor
+
+    def step(self, action):
+        x = action // self.dim
+        y = action % self.dim
+        obs = self.env.step(actions=[actions.FunctionCall(_MOVE_SCREEN,
+                                                    [_NOT_QUEUED, [x, y]])])
+        # select army
+        while _MOVE_SCREEN not in obs[0].observation["available_actions"]:
+            obs = self.env.step(actions=[actions.FunctionCall(_SELECT_ARMY,
+                                                         [_SELECT_ALL])])
+        return self._process_obs(obs)
+
+    def reset(self):
+        obs = self.env.reset()
+        # select army
+        while _MOVE_SCREEN not in obs[0].observation["available_actions"]:
+            obs = self.env.step(actions=[actions.FunctionCall(_SELECT_ARMY,
+                                                         [_SELECT_ALL])])
+        if self.processor:
+            return self.processor(obs[0].observation["screen"][_PLAYER_RELATIVE])
+        return obs[0].observation["screen"][_PLAYER_RELATIVE]
+
+    def _process_obs(self, obs):
+        reward = obs[0].reward.astype(np.float64)
+        done = obs[0].last()
+        observation = obs[0].observation["screen"][_PLAYER_RELATIVE]
+        if self.processor:
+            observation = self.processor(observation)
+        return observation, reward, done, None
+
+    def render(self):
+        pass
+
+
+def MoveToBeaconProcessor(state):
+    neutral_y, neutral_x = (state == _PLAYER_NEUTRAL).nonzero()
+    if not neutral_y.any():
+        return np.array([0, 0])
+    x = int(neutral_x.mean())
+    y = int(neutral_y.mean())
+    dim = state.shape[0]
+    result = np.zeros([2*dim])
+    result[x] = 1
+    result[dim + y] = 1
+    return result
 
 
 class RewardStepPairs(object):
@@ -21,6 +91,7 @@ class RewardStepPairs(object):
         self.steps.append(step)
 
     def plot(self, gamma=0.7):
+        import matplotlib.pyplot as plt
         if gamma is None:
             plt.plot(self.steps, self.rewards)
         else:
