@@ -70,6 +70,8 @@ class ReplayMemory(object):
         self.rewards[self.position] = reward
         self.position = (self.position + 1) % self.capacity
         self.size += 1
+        if self.size > self.capacity:
+            self.size = self.capacity
 
     def sample(self, batch_size, n_step=None):
         if n_step is not None:

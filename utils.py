@@ -7,6 +7,9 @@ from pysc2.env import sc2_env
 from pysc2.lib import actions
 from pysc2.lib import features
 import gflags as flags
+from collections import defaultdict
+import pickle
+import torch
 
 _PLAYER_RELATIVE = features.SCREEN_FEATURES.player_relative.index
 _PLAYER_FRIENDLY = 1
@@ -64,15 +67,96 @@ class Pysc2Wrapper(object):
 
 def MoveToBeaconProcessor(state):
     neutral_y, neutral_x = (state == _PLAYER_NEUTRAL).nonzero()
+    dim = state.shape[0]
+    result = np.zeros([2 * dim])
     if not neutral_y.any():
-        return np.array([0, 0])
+        return result
     x = int(neutral_x.mean())
     y = int(neutral_y.mean())
-    dim = state.shape[0]
-    result = np.zeros([2*dim])
     result[x] = 1
     result[dim + y] = 1
     return result
+
+
+def plotTwoGraph(file1, file2, name1, name2):
+    import matplotlib.pyplot as plt
+    with open("{}.pickle".format(file1), "rb") as f:
+        data1 = pickle.load(f)["reward"]
+
+    with open("{}.pickle".format(file2), "rb") as f:
+        data2 = pickle.load(f)["reward"]
+
+    x1, y1 = [], []
+    for k, v in iter(data1.items()):
+        x1.append(k)
+        y1.append(np.mean(v))
+
+    x2, y2 = [], []
+    for k, v in iter(data2.items()):
+        x2.append(k)
+        y2.append(np.mean(v))
+
+    plt.plot(x1, y1)
+    plt.plot(x2, y2)
+    plt.xlabel("Step")
+    plt.ylabel("Reward per Episode")
+    plt.grid()
+    plt.legend([name1, name2])
+    plt.show()
+
+
+class Container(object):
+
+    def __init__(self, save_name):
+        self.data = defaultdict(list)
+        self.record = defaultdict(lambda : defaultdict(list))
+        if save_name:
+            self.save_name = save_name
+        else:
+            self.save_name = "temp"
+
+    def add(self, key, val, timeStamp=None):
+        self.data[key].append(val)
+        if timeStamp is not None:
+            self.record[key][timeStamp].append(val)
+
+    def get(self, key):
+        if key not in self.data:
+            return 0
+
+        result = np.mean(self.data[key])
+        self.reset(key)
+        return result
+
+    def reset(self, key):
+        self.data.pop(key, None)
+
+    def save(self):
+        with open("{}.pickle".format(self.save_name), "wb") as f:
+            pickle.dump(dict(self.record), f)
+
+    def load(self):
+        with open("{}.pickle".format(self.save_name), "rb") as f:
+            self.record = pickle.load(f)
+
+    def plot(self, save_name=None):
+        import matplotlib.pyplot as plt
+        keys = []
+        for key in self.record.keys():
+            keys.append(key)
+            x, y = [], []
+            for k, v in iter(self.record[key].items()):
+                x.append(k)
+                y.append(np.mean(v))
+            plt.plot(x, y)
+        plt.legend(keys)
+        plt.ylabel("Reward per Episode")
+        plt.xlabel("Step")
+        plt.grid()
+        if save_name:
+            plt.savefig(save_name)
+        else:
+            plt.show()
 
 
 class RewardStepPairs(object):

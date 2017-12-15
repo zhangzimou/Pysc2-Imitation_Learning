@@ -22,40 +22,25 @@ class BaseModel(nn.Module):
         pass
 
 
-class DQNModel(BaseModel):
+class DQNModel(nn.Module):
 
-    def __init__(self, in_dim, out_dim, **kwargs):
-        super(DQNModel, self).__init__(in_dim, out_dim, **kwargs)
-        create_model = True
-        if self.LOAD_MODEL_IF_EXIST:
-            try:
-                self.model = torch.load(self.SAVE_MODEL_NAME)
-                print("Model loaded from {}".format(self.SAVE_MODEL_NAME))
-                create_model = False
-            except:
-                create_model = True
-
-        if create_model:
-            self.model = nn.Sequential(
-                nn.Linear(in_dim, 16),
-                nn.ReLU(),
-                nn.Linear(16, 16),
-                nn.ReLU(),
-                nn.Linear(16, 16),
-                nn.ReLU(),
-                nn.Linear(16, out_dim)
-            )
+    def __init__(self, in_dim, out_dim):
+        super(DQNModel, self).__init__()
+        self.model = nn.Sequential(
+            nn.Linear(in_dim, 16),
+            nn.ReLU(),
+            nn.Linear(16, 16),
+            nn.ReLU(),
+            nn.Linear(16, 16),
+            nn.ReLU(),
+            nn.Linear(16, out_dim)
+        )
 
     def forward(self, x):
         return self.model(x)
 
     def __call__(self, x):
         return self.forward(x)
-
-    def save(self):
-        if self.SAVE_MODEL:
-            torch.save(self.model, self.SAVE_MODEL_NAME)
-            print("Saved model to {}".format(self.SAVE_MODEL_NAME))
 
 
 class AtariNet(nn.Module):
@@ -68,10 +53,11 @@ class AtariNet(nn.Module):
             self.fc1 = nn.Linear(32*6*6, 256)
             self.fc2 = nn.Linear(256, 128)
         elif dim == 32:
-            self.conv1 = nn.Conv2d(1, 8, 4, 2)
-            self.conv2 = nn.Conv2d(8, 16, 4, 2)
-            self.fc1 = nn.Linear(16*6*6, 128)
-            self.fc2 = nn.Linear(128, 64)
+            self.conv1 = nn.Conv2d(1, 4, 4, 2)
+            self.conv2 = nn.Conv2d(4, 8, 4, 2)
+            self.fc1 = nn.Linear(8*6*6, 64)
+            self.fcx = nn.Linear(64, 32)
+            self.fcy = nn.Linear(64, 32)
         else:
             raise Exception("")
 
@@ -80,8 +66,9 @@ class AtariNet(nn.Module):
         x = F.relu(self.conv2(x))
         x = x.view(-1, self.num_flat_features(x))
         x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
+        xx = self.fcx(x)
+        xy = self.fcy(x)
+        return torch.cat([xx, xy], 1)
 
     def num_flat_features(self, x):
         size = x.size()[1:]  # all dimensions except the batch dimension
@@ -91,14 +78,36 @@ class AtariNet(nn.Module):
         return num_features
 
 
+class SimpleNet(nn.Module):
+
+    def __init__(self, dim):
+        super(SimpleNet, self).__init__()
+        self.fc_x = nn.Linear(2*dim, dim)
+        self.fc_y = nn.Linear(2*dim, dim)
+
+    def forward(self, x):
+        xx = self.fc_x(x)
+        xy = self.fc_y(x)
+        return torch.cat([xx, xy], 1)
+
+
 class MoveToBeaconTest(nn.Module):
 
     def __init__(self, dim):
         super(MoveToBeaconTest, self).__init__()
-        self.fc = nn.Linear(2*dim, 2*dim)
+        self.dim = dim
+        # self.fc = nn.Linear(2*dim, 2*dim)
+        self.fc1 = nn.Linear(2*dim, 2*dim)
+        self.fc_x = nn.Linear(2*dim, dim)
+        self.fc_y = nn.Linear(2*dim, dim)
+        # self.fc_x = nn.Linear(dim, dim)
+        # self.fc_y = nn.Linear(dim, dim)
 
     def forward(self, x):
-        return self.fc(x)
+        # return torch.cat([self.fc_x(x[:, :self.dim]), self.fc_y(x[:, self.dim:])], 1)
+        # return self.fc(x)
+        x = F.relu(self.fc1(x))
+        return torch.cat([self.fc_x(x), self.fc_y(x)], 1)
 
 
 class ModelWrapper():
