@@ -10,17 +10,27 @@ This project implemented DQN, Double DQN and Deep Q-Learning from Demonstration 
 
 ## Demo
 - MoveToBeacon with DQfD (https://youtu.be/flJm7cwxFF4)
+
 [![Project demo](pictures/beacon_demo.png)](https://youtu.be/flJm7cwxFF4)
+
 - CollectMineralShards with DQfD (https://youtu.be/_exuFA0OsPw)
+
 [![Project demo](pictures/mineral_demo.png)](https://youtu.be/_exuFA0OsPw)
 
 ## Results
 - Cartpole
+
 ![](pictures/cartpole.png)<!-- .element width="10" -->
+
 - MoveToBeacon
+
 ![](pictures/beacon.png)
+
 - CollectMineralShards
+
 ![](pictures/mineral.png)
+
+
 # Quick Start Guide
 
 ## 4. Train it!
